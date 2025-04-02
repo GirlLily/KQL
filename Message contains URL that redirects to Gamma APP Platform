@@ -1,0 +1,15 @@
+// Gamma App platform has been widely used by threat actors as a means of distributing phishing documents. 
+// This analytic rule is designed to detect URLs within email content that contain redirects to the Gamma App website. Gamma App redirects URLs are often used in phishing campaigns, malicious links, or other suspicious activities where attackers attempt to disguise the final destination of a link.
+
+let domain_list = datatable(Domain:string) [
+'Microsoft.com',
+'Example.com'
+];
+EmailUrlInfo
+| where Url has "gamma.app"
+| extend RedirectUrl = extract(@"https?://[^\s]+[?&](url|goto|redirect)=([^\s&]+)", 2, Url)
+| where isnotempty(RedirectUrl)
+| join EmailEvents
+    on $left.NetworkMessageId == $right.NetworkMessageId
+| where SenderFromDomain !in(domain_list) //exclude any sender domain you want
+| project NetworkMessageId, Url, SenderFromAddress, RecipientEmailAddress
