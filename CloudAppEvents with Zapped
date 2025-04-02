@@ -1,0 +1,9 @@
+CloudAppEvents
+| where ActionType == "AirInvestigationData"
+| where RawEventData['InvestigationType'] startswith "Zapped"
+| where array_length(RawEventData['Actions']) == 3
+| extend Target = tostring(parse_json(RawEventData['Actions'][1]))
+| extend Entities = tostring(parse_json(Target)['Entities'])
+| extend ClusterBy = parse_json(Entities)[0]['ClusterBy']
+| extend ClusterByValue = parse_json(Entities)[0]['ClusterByValue']
+| project ClusterBy,ClusterByValue
