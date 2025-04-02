@@ -1,0 +1,6 @@
+EmailEvents
+| where SenderFromAddress == "message@adobe.com"
+| extend Domain= extract("@([a-zA-Z0-9.-]+)", 1, SenderDisplayName) 
+| extend Domain = iif(Domain != "example.com",Domain,"") //filter out the email sender from those you want to exclude  
+| where isempty(Domain) == false
+| project Timestamp,NetworkMessageId,SenderFromAddress,Subject,SenderDisplayName,Domain,RecipientEmailAddress,ReportId
