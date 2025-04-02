@@ -1,0 +1,50 @@
+let KnownGood = datatable(string1: string) [
+    "microsoft",
+    "gmail",
+    "asos",
+    "apple"
+];
+// 
+datatable(SenderFromDomain: string) [
+    "asos.com",
+    "aso5.com",
+    "gmail.com",
+    "gmaiil.com",
+    "microsoft.org",
+    "gma1l.net",
+    "appie.com",
+    "m1cr0s0ft.lol",
+    "redfunnel.co.uk"
+]
+| where isnotempty(SenderFromDomain)
+| distinct SenderFromDomain
+| extend string2 = tolower(split(SenderFromDomain, ".")[-2])| extend DomainParts = split(tolower(SenderFromDomain), ".")
+| extend string2 = tostring(case(
+    DomainParts[-2] in ("co","org", "net", "info","com"), DomainParts[-3],  // For domains like redfunnel.co.uk or For domains like cattaliniterminais.com.br, need to add more TLD
+    DomainParts[-2] // for email.microsoft.com
+))| extend Key = "1"
+| join kind=leftouter (
+    KnownGood
+    | extend Key = "1"
+    | project string1, Key
+) on Key
+| where string2 !in (KnownGood)
+| mv-apply
+    c = extract_all("(.)", strcat(string1, string2)) to typeof(string)
+    ,
+    s = array_concat(repeat("1", strlen(string1)), repeat("2", strlen(string2))) to typeof(string) on
+    (
+    summarize count_diff = countif(s == 2) - countif(s == 1) by c
+    | extend count_diff_abs=abs(count_diff)
+    | extend count_diff=(count_diff))
+| extend len1=strlen(string1), len2=strlen(string2)
+| summarize diff_absolute=sum(count_diff_abs)
+    by
+    string1,
+    string2,
+    len1,
+    len2
+| extend diff_absolute2=iff(diff_absolute == 0, '0.1', tostring(diff_absolute))
+| extend ratio=round(toreal(diff_absolute2) / toreal(len1), 2)
+| order by ratio desc
+| where ratio < 0.8
