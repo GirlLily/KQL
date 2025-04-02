@@ -1,0 +1,52 @@
+let dt_lookBack = 1h;
+let ioc_lookBack = 14d; 
+let Domain_Indicators =
+    ThreatIntelligenceIndicator
+    | where TimeGenerated >= ago(ioc_lookBack)
+    | where isnotempty(DomainName)
+    | summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by IndicatorId
+    | where Active == true and ExpirationDateTime > now()
+    | extend TI_DomainEntity = DomainName;
+Domain_Indicators
+| join kind=innerunique (
+    CloudAppEvents
+    | extend IngestionTime = ingestion_time()
+    | where IngestionTime > ago(dt_lookBack)
+    | extend DeepLinkUrl  = parse_json(RawEventData["DeepLinkUrl"])
+    | extend entity = parse_json(tostring(parse_json(RawEventData["Data"])))["Entities"]
+    | where isnotempty(entity)
+    | mv-expand entity
+    | where isnotempty(entity["Urls"])
+    | extend URLs =parse_json(entity["Urls"])
+    | mv-expand URLs
+    | extend Domain = tolower(trim('"', tostring(parse_url(tostring(URLs)).Host)))
+    | extend parts = split(Domain, '.')
+    | extend tld = parts[(array_length(parts) - 1)]
+    | extend CloudAppEvents_TimeGenerated = TimeGenerated)
+    on $left.TI_DomainEntity == $right.Domain
+| where CloudAppEvents_TimeGenerated < ExpirationDateTime
+| summarize CloudAppEvents_TimeGenerated = argmax(CloudAppEvents_TimeGenerated, *) by IndicatorId
+| extend
+    Description = max_CloudAppEvents_TimeGenerated_Description,
+    ActivityGroupNames = max_CloudAppEvents_TimeGenerated_ActivityGroupNames,
+    ThreatType = max_CloudAppEvents_TimeGenerated_ThreatType,
+    ExpirationDateTime = max_CloudAppEvents_TimeGenerated_ExpirationDateTime,
+    ConfidenceScore = max_CloudAppEvents_TimeGenerated_ConfidenceScore,
+    DomainName = max_CloudAppEvents_TimeGenerated_DomainName,
+    ProviderName = max_CloudAppEvents_TimeGenerated_IndicatorProvider,
+    AlertSeverity = max_CloudAppEvents_TimeGenerated_ThreatSeverity,
+    IPAddress = max_CloudAppEvents_TimeGenerated_IPAddress,
+    DeepLinkUrl = max_CloudAppEvents_TimeGenerated_DeepLinkUrl
+| project
+    CloudAppEvents_TimeGenerated,
+    Description,
+    ActivityGroupNames,
+    IndicatorId,
+    ThreatType,
+    ExpirationDateTime,
+    ConfidenceScore,
+    DomainName,
+    ProviderName,
+    AlertSeverity,
+    IPAddress,
+    DeepLinkUrl
