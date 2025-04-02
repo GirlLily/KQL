@@ -1,0 +1,15 @@
+// find the suspicious signs attempts along with registering new device and MFA prompt sent to the user
+
+AuditLogs
+| where Category == "UserManagement" and OperationName == 'User registered security info' and Result == "success"
+| extend actor = tostring(parse_json(InitiatedBy["user"]["userPrincipalName"]))
+| where  isnotempty(parse_json(InitiatedBy["user"]["ipAddress"]))
+| extend IP = parse_json(InitiatedBy["user"]["ipAddress"])
+| extend city = geo_info_from_ip_address(tostring(IP)).city
+| extend country = geo_info_from_ip_address(tostring(IP)).country
+| join SigninLogs
+| where ResultType == "50076" // Indicates MFA prompt sent to user
+| summarize PushAttempts = count() by UserPrincipalName, IPAddress
+| where PushAttempts > 3
+) on $left.actor == $right.UserPrincipalName
+| project UserPrincipalName,IP,city,country,PushAttempts
