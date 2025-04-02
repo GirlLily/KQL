@@ -1,3 +1,6 @@
+// Identifies compromises and attacks and detect malicious activities in one's domain entity from TI.
+// modified base on Microsoft kql which triggered FP due join empty/None match 
+
 let dt_lookBack = 1h;
 let ioc_lookBack = 14d; 
 let Domain_Indicators =
